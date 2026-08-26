@@ -1,5 +1,9 @@
-export const SAND_INFERENCE_PROVIDERS = ["cursor", "claude-code", "codex", "openrouter"] as const;
+export const SAND_INFERENCE_PROVIDERS = ["rox", "cursor", "claude-code", "codex", "openrouter"] as const;
 export type SandInferenceProvider = (typeof SAND_INFERENCE_PROVIDERS)[number];
+export const DEFAULT_SAND_INFERENCE_PROVIDER: SandInferenceProvider = "rox";
+export const DEFAULT_ROX_BASE_URL = "https://api.rox.one/v1";
+export const DEFAULT_ROX_MODEL = "grok-4.6";
+export const LOCAL_ROX_AUTH_ID = "rox-local";
 
 export interface SandInferenceRouterUsageProvider {
   readonly requests: number;
@@ -21,5 +25,5 @@ export function isSandInferenceProvider(value: unknown): value is SandInferenceP
 
 export function emptySandInferenceRouterUsage(): SandInferenceRouterUsage {
   const empty = (): SandInferenceRouterUsageProvider => ({ requests: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, lastUsedAt: null });
-  return { schemaVersion: 1, providers: { cursor: empty(), "claude-code": empty(), codex: empty(), openrouter: empty() } };
+  return { schemaVersion: 1, providers: { rox: empty(), cursor: empty(), "claude-code": empty(), codex: empty(), openrouter: empty() } };
 }

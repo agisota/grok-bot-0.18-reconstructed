@@ -3,6 +3,10 @@ import {
   SAND_ACCESS_UNKNOWN,
 } from "../../shared/sand-access.js";
 
+import { LOCAL_ROX_AUTH_ID } from "../../shared/inference-router.js";
+import { getSandRootDir } from "../../host/host-paths.js";
+import { SandSettingsStore } from "../../shared/node/settings/sand-settings-store.js";
+import { join } from "node:path";
 export const SAND_ACCESS_REQUEST_TIMEOUT_MS = 10_000;
 
 export type SandAccessState = "granted" | "unavailable" | "paymentRequired" | "unknown";
@@ -83,6 +87,9 @@ export async function readSandAccessOnce(deps: {
   readonly getAuthStatus: () => Promise<CursorAuthStatus>;
   readonly readAccess: () => Promise<SandAccess>;
 }): Promise<{ readonly identity: string | null; readonly access: SandAccess }> {
+  if (new SandSettingsStore(join(getSandRootDir(), "settings.json")).getInferenceProvider() === "rox") {
+    return { identity: LOCAL_ROX_AUTH_ID, access: { state: "granted", reason: "none" } };
+  }
   const status = await deps.getAuthStatus().catch((): CursorAuthStatus => ({ kind: "logged-out" }));
   if (status.kind === "logging-in") return { identity: null, access: SAND_ACCESS_CHECKING };
   const identity = accountSlot(status);

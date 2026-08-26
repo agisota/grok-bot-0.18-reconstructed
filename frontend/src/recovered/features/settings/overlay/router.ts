@@ -1,6 +1,6 @@
 import type { AgentDesktopBridge } from "../../../contracts/desktop-bridge";
 
-export type RouterProviderId = "cursor" | "claude-code" | "codex" | "openrouter";
+export type RouterProviderId = "rox" | "cursor" | "claude-code" | "codex" | "openrouter";
 
 export interface RouterProvider {
   readonly id: RouterProviderId;
@@ -10,10 +10,17 @@ export interface RouterProvider {
   readonly usageSource: "cursor" | "external";
 }
 
-export const DEFAULT_ROUTER_PROVIDER: RouterProviderId = "cursor";
+export const DEFAULT_ROUTER_PROVIDER: RouterProviderId = "rox";
 export const ROUTER_PROVIDER_PERSISTENCE_KEY = "settings.router-provider.v1";
 
 export const ROUTER_PROVIDERS: readonly RouterProvider[] = [
+  {
+    id: "rox",
+    label: "ROX",
+    description: "Use the OmniRoute API at api.rox.one without a Cursor login.",
+    usageDescription: "ROX usage is managed by your OmniRoute key and is not exposed as an in-app meter.",
+    usageSource: "external"
+  },
   {
     id: "cursor",
     label: "Cursor",

@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { join } from "node:path";
 import {
   DEFAULT_CURSOR_BACKEND_URL,
   getAuthClientId,
@@ -15,6 +16,9 @@ import { deleteSecret, isEncryptedStorageAvailable, readSecret, waitForEncrypted
 import { reportSessionEvent, type SessionRefreshFailure, type SessionSignoutCause } from "./session-funnel-telemetry.js";
 import { reportSigninLogin, reportSigninSignout, signinSignoutCause } from "./signin-funnel-telemetry.js";
 import { resolveAuthRedirectTarget } from "../auth/auth-callback-registration.js";
+import { LOCAL_ROX_AUTH_ID } from "../../shared/inference-router.js";
+import { getSandRootDir } from "../../host/host-paths.js";
+import { SandSettingsStore } from "../../shared/node/settings/sand-settings-store.js";
 
 export const ACCESS_TOKEN_SECRET_KEY = "cursor-access-token";
 export const REFRESH_TOKEN_SECRET_KEY = "cursor-refresh-token";
@@ -236,6 +240,9 @@ export class SandCursorAuthService {
   subscribe(listener: (status: SandAuthStatus) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
 
   async getStatus(): Promise<SandAuthStatus> {
+    if (new SandSettingsStore(join(getSandRootDir(), "settings.json")).getInferenceProvider() === "rox") {
+      return { kind: "logged-in", authId: LOCAL_ROX_AUTH_ID, displayName: "ROX" };
+    }
     const operationEpoch = this.authOperationEpoch;
     if (this.credentialsRetainedAfterFailedLogout) return RETAINED_AFTER_FAILED_LOGOUT_STATUS;
     if (this.credentialsRevoked) return this.reportedLoggedOutStatus;

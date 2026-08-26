@@ -136,6 +136,13 @@ test("Router settings use the trusted backend and display recorded inference usa
   assert.match(providers, /tools: mcpServerUrl == null \? \[\] : \["mcp__grok_bot_plugins__\*"\]/);
   assert.match(providers, /https:\/\/openrouter\.ai\/api\/v1/);
   assert.match(providers, /OpenRouter needs OPENROUTER_API_KEY/);
+  assert.match(providers, /DEFAULT_ROX_BASE_URL/);
+  assert.match(providers, /ROX needs OMNIROUTE_API_KEY/);
+  assert.match(rendererPatch, /value:"rox"/);
+  assert.match(rendererPatch, /secret:"OMNIROUTE_API_KEY"/);
+  const inferenceRouter = await readFile(path.join(repoRoot, "source", "shared", "inference-router.ts"), "utf8");
+  assert.match(inferenceRouter, /https:\/\/api\.rox\.one\/v1/);
+  assert.match(inferenceRouter, /DEFAULT_SAND_INFERENCE_PROVIDER: SandInferenceProvider = "rox"/);
   assert.match(cursorSession, /routedProvider !== "cursor"/);
   assert.match(cursorSession, /createProviderPromptSession\(routedProvider\)/);
   assert.match(cursorBackend, /routedProvider !== "cursor"/);
