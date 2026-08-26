@@ -20,3 +20,13 @@
   - `runtime:renderer`: pass
   - `runtime:fatal-logs`: pass
   - `runtime:opaque-fallback`: pass
+
+## Routing on main
+
+- `7ab9729` Default reconstructed Grok Bot to ROX without Cursor login
+- `f9bed06` Route Grok Bot computer to m4697 and default T6 Luna
+- `2066499` Fix Luna chat path and honor isolated user-data-dir
+- Default inference: `rox` / `https://api.rox.one/v1` / `gpt-5.6-luna` / reasoning `medium`
+- Default box: `m4697` gateway `http://100.89.19.82:1340`
+- Official `/Applications/Grok Bot.app` 0.27.0 is not overwritten
+- Do not commit LFS archive DMG/EXE blobs
