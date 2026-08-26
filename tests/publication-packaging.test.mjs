@@ -145,8 +145,9 @@ test("Router settings use the trusted backend and display recorded inference usa
   assert.match(inferenceRouter, /https:\/\/api\.rox\.one\/v1/);
   assert.match(inferenceRouter, /DEFAULT_SAND_INFERENCE_PROVIDER: SandInferenceProvider = "rox"/);
   assert.match(inferenceRouter, /DEFAULT_ROX_MODEL = "gpt-5.6-luna"/);
-  assert.match(providers, /client\.responses\(id\)/);
+  assert.match(providers, /client\.chat\(id\)/);
   assert.match(providers, /resolveRoxModelSelection/);
+
   assert.match(rendererPatch, /title:"Model"/);
   assert.match(rendererPatch, /desktop\.agent\.listRoxModels\(\)/);
   assert.match(rendererPatch, /desktop\.agent\.setAgentRoxModel/);

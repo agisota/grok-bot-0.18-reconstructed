@@ -112,12 +112,13 @@ test("listRoxModels and per-agent set/get honor Luna defaults", async () => {
   }
 });
 
-test("ROX executor uses responses() for gpt-5.6 and profile selection", async () => {
+test("ROX executor uses chat completions for Luna with medium reasoning", async () => {
   const providers = await readFile(path.join(repoRoot, "source/host/extensions/inference/provider-session.ts"), "utf8");
-  assert.match(providers, /client\.responses\(id\)/);
-  assert.match(providers, /id\.startsWith\("gpt-5.6-"\)/);
+  assert.match(providers, /const model: LanguageModelV1 = client\.chat\(id\)/);
+  assert.doesNotMatch(providers, /client\.responses\(id\)/);
   assert.match(providers, /providerOptions: \{ openai: \{ reasoning \} \}/);
   assert.match(providers, /resolveRoxModelSelection\(options\?\.agentId\)/);
+
   const patch = await readFile(path.join(repoRoot, "scripts/lib/router-renderer-patch.mjs"), "utf8");
   assert.match(patch, /title:"Model"/);
   assert.match(patch, /desktop\.agent\.listRoxModels\(\)/);

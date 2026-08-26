@@ -66,8 +66,9 @@ export function resolveSandDataRootOverride(env: NodeJS.ProcessEnv = process.env
 export function getSandRootDir(homeDir = homedir()): string {
   const override = resolveSandDataRootOverride();
   if (override != null) return override;
-  const userDataDir = resolveSandUserDataDir([], process.env);
+  const userDataDir = resolveSandUserDataDir(process.argv, process.env);
   if (userDataDir != null) return join(userDataDir, SAND_DATA_DIRNAME);
+
   const variant = getSandVariant();
   return variant === "sand" ? getSandProductionRootDir(homeDir) : join(homeDir, ".cursor", variant);
 }

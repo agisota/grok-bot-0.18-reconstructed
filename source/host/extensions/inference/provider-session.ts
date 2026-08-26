@@ -265,7 +265,8 @@ function openRouterExecutor(messages: readonly ProviderMessage[], invocationId: 
     name: rox ? "rox" : "openrouter",
     headers: rox ? { "HTTP-Referer": "https://api.rox.one", "X-Title": "Grok Bot ROX" } : { "HTTP-Referer": "https://github.com/grok-bot-reconstructed", "X-Title": "Grok Bot Reconstructed" },
   });
-  const model: LanguageModelV1 = rox && id.startsWith("gpt-5.6-") ? client.responses(id) : client.chat(id);
+  const model: LanguageModelV1 = client.chat(id);
+
   const tools = toToolSet(definitions, executeTool);
   const reasoning = rox && effort != null && effort !== "none" ? { effort } : undefined;
   const result = streamText({ model, system: GROK_ROUTER_SYSTEM_PROMPT, messages: messages as CoreMessage[], ...(tools === undefined ? {} : { tools }), toolCallStreaming: true, maxSteps: tools === undefined ? 1 : 8, abortSignal: AbortSignal.timeout(400_000), ...(reasoning == null ? {} : { providerOptions: { openai: { reasoning } } }) });
