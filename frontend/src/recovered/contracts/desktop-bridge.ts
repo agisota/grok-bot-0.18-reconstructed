@@ -364,6 +364,9 @@ export interface AgentDesktopBridge {
   getComputerUseModel(): Promise<AgentModelSelection | null>;
   setComputerUseModel(model: AgentModelSelection | null): Promise<AgentModelSelection | null>;
   getAvailableModels(): Promise<unknown>;
+  listRoxModels(): Promise<{ models: ReadonlyArray<{ id: string }> }>;
+  getAgentRoxModel(agentId?: string): Promise<{ agentId: string | null; modelId: string; effort: "none" | "low" | "medium" | "high" }>;
+  setAgentRoxModel(args: { agentId?: string | null; modelId: string; effort?: "none" | "low" | "medium" | "high" }): Promise<{ agentId: string; modelId: string; effort: "none" | "low" | "medium" | "high" }>;
   clientPersistence: {
     read(key: string): Promise<string | null>;
     write(key: string, value: string): Promise<void>;

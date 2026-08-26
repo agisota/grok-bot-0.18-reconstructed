@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { SAND_DEFAULT_MODEL_ID, SAND_DEFAULT_MODEL_SELECTION } from "../../../shared/agents/agent-model.js";
 import { SAND_COMPUTER_USE_MODEL_SELECTION, SAND_COMPUTER_USE_SUBAGENT_MODEL_ID, isSandAgentModelSelection, type SandAgentModelSelection } from "../../../shared/agents/sand-agent-model.js";
 import { type InferenceReason } from "../../../packages/proto/generated/aiserver/v1/inference_pb.js";
 import { createMockPromptExecutor } from "../../../packages/chat-inference/mock-prompt-executor.js";
@@ -16,8 +17,7 @@ import { SandSettingsStore } from "../../../shared/node/settings/sand-settings-s
 import { getSandRootDir } from "../../host-paths.js";
 import { createProviderPromptSession } from "./provider-session.js";
 
-export const SAND_DEFAULT_MODEL_ID = "grok-4.5";
-export const SAND_DEFAULT_MODEL_SELECTION: SandAgentModelSelection = { modelId: SAND_DEFAULT_MODEL_ID, maxMode: true, parameters: [{ id: "effort", value: "high" }, { id: "fast", value: "true" }] };
+
 export interface RequestedModel { modelId: string; maxMode?: boolean; parameters?: readonly { id: string; value: string }[] }
 export interface SandSessionOptions { modelId?: string; isSummarizationSession?: boolean; isComputerUseSubagent?: boolean; isBrowserUseSubagent?: boolean }
 

@@ -2,7 +2,7 @@ export const SAND_INFERENCE_PROVIDERS = ["rox", "cursor", "claude-code", "codex"
 export type SandInferenceProvider = (typeof SAND_INFERENCE_PROVIDERS)[number];
 export const DEFAULT_SAND_INFERENCE_PROVIDER: SandInferenceProvider = "rox";
 export const DEFAULT_ROX_BASE_URL = "https://api.rox.one/v1";
-export const DEFAULT_ROX_MODEL = "grok-4.6";
+export const DEFAULT_ROX_MODEL = "gpt-5.6-luna";
 export const LOCAL_ROX_AUTH_ID = "rox-local";
 
 export interface SandInferenceRouterUsageProvider {

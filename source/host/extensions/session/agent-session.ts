@@ -16,6 +16,7 @@ import { getAgentAvatar, getAgentAvatarPng, getAgentProfileText, updateAgentProf
 import { listAgents, summarizeAgentById } from "./session-roster.js";
 import { buildSummary, loadAgentDbExtras, type DbExtras } from "./session-summaries.js";
 import { SandConnectorSecretStore } from "./connector-secret-store.js";
+import { ensureAgentRoxKey, setRoxAgentKeyIo } from "../../../electron-main/account/rox-agent-keys.js";
 import { ensureConversationCapacityForTurn } from "./conversation-size-limits.js";
 import { expirePendingAutoReviewApprovalEntries, expirePendingLocalToolPermissionAskEntries } from "./pending-card-sweeps.js";
 import { ACTIVE_AGENT_FILENAME, getAgentDbPath, getConnectorSecretsRoot, statIfExists } from "./session-paths.js";
@@ -79,6 +80,7 @@ export class SandAgentSessionStore {
     this.connectorSecrets = new SandConnectorSecretStore(getConnectorSecretsRoot(rootDir));
     this.materialization = options.materialization ?? options.createMaterialization?.(this);
     this.conversationState = options.conversationState ?? options.createConversationState?.(this);
+    setRoxAgentKeyIo({ getAgentDir: (agentId) => this.getAgentDir(agentId) });
   }
   getRootDir(): string { return this.rootDir; }
   setMemory(memory: SessionMemoryProvider): void { this.memory = memory; }
@@ -95,14 +97,15 @@ export class SandAgentSessionStore {
   agentDirExists(agentId: string): boolean { return existsSync(this.getAgentDir(agentId)); }
   writeAgentProfileFile(agentId: string, profile: Partial<SandAgentProfile> & { name: string; description: string }): void {
     const path = getSandProfilePath(this.getAgentDir(agentId)), current = readSandProfileFile(path), name = resolveProfileName(profile.name.trim(), current);
-    writeSandProfileFile(path, { name, description: profile.description.trim(), title: profile.title?.trim() ?? current?.title ?? "", avatarShape: profile.avatarShape?.trim() ?? current?.avatarShape ?? "", avatarColor: profile.avatarColor?.trim() ?? current?.avatarColor ?? "" });
+    writeSandProfileFile(path, { name, description: profile.description.trim(), title: profile.title?.trim() ?? current?.title ?? "", avatarShape: profile.avatarShape?.trim() ?? current?.avatarShape ?? "", avatarColor: profile.avatarColor?.trim() ?? current?.avatarColor ?? "", ...(profile.model != null ? { model: profile.model } : current?.model != null ? { model: current.model } : {}) });
   }
   async withAgentDb<T>(agentId: string, fn: (db: SandAgentDb, dbPath: string) => T | Promise<T>): Promise<T> { const dbPath = getAgentDbPath(this.rootDir, agentId), db = new SandAgentDb(dbPath); try { return await fn(db, dbPath); } finally { db.close(); } }
 
   private async createLocalSession(profile: Partial<SandAgentProfile>, origin: "user" | "dev", purpose?: string): Promise<OpenAgentSession> {
     let id = randomUUID(); while (this.agentDirExists(id)) id = randomUUID();
     mkdirSync(this.getAgentDir(id), { recursive: true });
-    this.writeAgentProfileFile(id, { name: profile.name ?? "Grok", description: profile.description ?? "", ...(profile.title == null ? {} : { title: profile.title }), ...(profile.avatarShape == null ? {} : { avatarShape: profile.avatarShape }), ...(profile.avatarColor == null ? {} : { avatarColor: profile.avatarColor }) });
+    await ensureAgentRoxKey(id, profile.name ?? "Grok");
+    this.writeAgentProfileFile(id, { name: profile.name ?? "Grok", description: profile.description ?? "", ...(profile.title == null ? {} : { title: profile.title }), ...(profile.avatarShape == null ? {} : { avatarShape: profile.avatarShape }), ...(profile.avatarColor == null ? {} : { avatarColor: profile.avatarColor }), ...(profile.model == null ? {} : { model: profile.model }) });
     const dbPath = getAgentDbPath(this.rootDir, id), db = new SandAgentDb(dbPath); db.set("agentId", id); db.setAgentOrigin(origin); if (purpose != null) db.setAgentPurpose(purpose); db.setIntroductionPending(true);
     return { id, dbPath, db, agentStore: { dispose: async () => {} } };
   }

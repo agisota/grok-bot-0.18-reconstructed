@@ -9,6 +9,7 @@ import type { SandSettingsStore } from "../../shared/node/settings/sand-settings
 import type { RecreateResult } from "./box-recreate-commands.js";
 import type { SandRemoteHostConnector } from "./box-host-connector.js";
 import type { GatewayConnection } from "./gateway-descriptor-cache.js";
+import { forceRecreateM4697Box, recreateM4697Box, startM4697Box } from "./m4697-host-connector.js";
 
 export const LOCAL_DOCKER_BOX_IMAGE = "public.ecr.aws/k0i0n2g5/cursorenvironments/universal:sand-box-latest";
 export const LOCAL_DOCKER_BOX_CONTAINER = "grok-bot-local-vm";
@@ -242,10 +243,11 @@ export function createSettingsRoutedHostConnector(
     return ensureInFlight;
   };
   return {
-    connect: async () => settings.getBoxRuntime() === "local-docker" ? await localConnect() : await remote.connect(),
+    connect: async () => settings.getBoxRuntime() === "m4697" ? await startM4697Box(settings.settingsPath) : settings.getBoxRuntime() === "local-docker" ? await localConnect() : await remote.connect(),
     ...(remote.issueLocalExecDaemonCredential == null ? {} : { issueLocalExecDaemonCredential: remote.issueLocalExecDaemonCredential.bind(remote) }),
     ...(remote.issueInferenceCredential == null ? {} : { issueInferenceCredential: remote.issueInferenceCredential.bind(remote) }),
     recreate: async (args): Promise<RecreateResult> => {
+      if (settings.getBoxRuntime() === "m4697") return await recreateM4697Box(settings.settingsPath);
       if (settings.getBoxRuntime() !== "local-docker") {
         if (remote.recreate == null) throw new Error("Remote computer recreation is unavailable.");
         return await remote.recreate(args);
@@ -256,6 +258,7 @@ export function createSettingsRoutedHostConnector(
       return { status: "started-untrackable" };
     },
     forceRecreate: async (): Promise<RecreateResult> => {
+      if (settings.getBoxRuntime() === "m4697") return await forceRecreateM4697Box(settings.settingsPath);
       if (settings.getBoxRuntime() !== "local-docker") {
         if (remote.forceRecreate == null) return { status: "rejected", reason: "Remote computer reset is unavailable." };
         return await remote.forceRecreate();

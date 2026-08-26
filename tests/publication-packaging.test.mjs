@@ -91,9 +91,10 @@ test("Router settings use the trusted backend and display recorded inference usa
   assert.match(rendererPatch, /desktop\.agent\.getInferenceRouter\(\)/);
   assert.match(rendererPatch, /desktop\.agent\.setInferenceRouter\(n\)/);
   assert.match(rendererPatch, /desktop\.agent\.getBoxRuntime\(\)/);
-  assert.match(rendererPatch, /desktop\.agent\.setBoxRuntime\(r\)/);
+  assert.match(rendererPatch, /desktop\.agent\.setBoxRuntime\(i\)/);
   assert.match(rendererPatch, /role:"switch"/);
-  assert.match(rendererPatch, /Use local Docker VM/);
+  assert.match(rendererPatch, /Dedicated server m4697/);
+
   assert.match(rendererPatch, /onValueChange:l=>\{if\(l!==null\)void e\(l\)\}/);
   assert.match(rendererPatch, /desktop\.secrets\.upsert/);
   assert.doesNotMatch(rendererPatch, /settings\.router-provider\.v1/);
@@ -111,7 +112,7 @@ test("Router settings use the trusted backend and display recorded inference usa
   assert.match(mainEdge, /return \{ provider, usage:/);
   assert.match(mainEdge, /invoke\(deps\.boxRecovery, "restartCoordinator"\)/);
   assert.match(mainEdge, /mode === "local-docker"\) await startLocalDockerBox\(settingsPath\); else await stopLocalDockerBox\(\)/);
-  assert.match(mainEdge, /setBoxRuntime", mode === "local-docker" \? "remote" : "local-docker"/);
+  assert.match(mainEdge, /setBoxRuntime", isSandBoxRuntime\(previous\) \? previous : DEFAULT_SAND_BOX_RUNTIME/);
   assert.match(localDocker, /public\.ecr\.aws\/k0i0n2g5\/cursorenvironments\/universal:sand-box-latest/);
   assert.match(localDocker, /"127\.0\.0\.1:1340:1340"/);
   assert.match(localDocker, /SAND_BOX_AUTO_UPDATE=0/);
@@ -143,6 +144,13 @@ test("Router settings use the trusted backend and display recorded inference usa
   const inferenceRouter = await readFile(path.join(repoRoot, "source", "shared", "inference-router.ts"), "utf8");
   assert.match(inferenceRouter, /https:\/\/api\.rox\.one\/v1/);
   assert.match(inferenceRouter, /DEFAULT_SAND_INFERENCE_PROVIDER: SandInferenceProvider = "rox"/);
+  assert.match(inferenceRouter, /DEFAULT_ROX_MODEL = "gpt-5.6-luna"/);
+  assert.match(providers, /client\.responses\(id\)/);
+  assert.match(providers, /resolveRoxModelSelection/);
+  assert.match(rendererPatch, /title:"Model"/);
+  assert.match(rendererPatch, /desktop\.agent\.listRoxModels\(\)/);
+  assert.match(rendererPatch, /desktop\.agent\.setAgentRoxModel/);
+  assert.match(rendererPatch, /gpt-5.6-luna/);
   assert.match(cursorSession, /routedProvider !== "cursor"/);
   assert.match(cursorSession, /createProviderPromptSession\(routedProvider\)/);
   assert.match(cursorBackend, /routedProvider !== "cursor"/);

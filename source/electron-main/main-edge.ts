@@ -7,9 +7,12 @@ import { isValidIanaTimeZone } from "../shared/timezone.js";
 import { sandWebauthnProxyMirroredEnablement } from "../shared/webauthn-proxy-availability.js";
 import { reportDesktopEdgeFailure } from "./desktop-edge-failures.js";
 import { isSandInferenceProvider } from "../shared/inference-router.js";
+import { getAgentRoxModel, isRoxReasoningEffort, listRoxModels, setAgentRoxModel } from "../host/agents/agent-rox-model.js";
+import { resolveAgentRoxKey } from "./account/rox-agent-keys.js";
 import { getLocalInferenceCliStatus } from "../shared/node/inference-router-local.js";
-import { isSandBoxRuntime } from "../shared/box-runtime.js";
+import { DEFAULT_SAND_BOX_RUNTIME, isSandBoxRuntime } from "../shared/box-runtime.js";
 import { getLocalDockerStatus, startLocalDockerBox, stopLocalDockerBox } from "./box/local-docker-host-connector.js";
+import { getM4697Status, startM4697Box, stopM4697Box } from "./box/m4697-host-connector.js";
 
 export const MAIN_EDGE_UNSERVED = "main/unserved-method";
 export const MAIN_EDGE_UPDATE_UNAVAILABLE = "main/update-unavailable";
@@ -114,8 +117,11 @@ export function createMainEdgeHandlers(deps: MainEdgeDeps): HandlerMap {
     getAvailableModels: () => deps.fetchAvailableModels(),
     getInferenceRouter: async () => { const settings = await deps.readHostSettingsFromBox().catch(() => ({} as UnknownRecord)); const provider = invoke(deps.settingsStore, "getInferenceProvider"); return { provider: isSandInferenceProvider(provider) ? provider : "cursor", usage: settings.inferenceRouterUsage ?? invoke(deps.settingsStore, "getInferenceRouterUsage") ?? null, local: getLocalInferenceCliStatus() }; },
     setInferenceRouter: async (raw) => { const provider = req(raw).provider; invariant(isSandInferenceProvider(provider), "Unknown inference provider."); invoke(deps.settingsStore, "setInferenceProvider", provider); const settings = await deps.syncHostSettingsToBox({ inferenceProvider: provider }).catch(() => null); return { provider, usage: settings?.inferenceRouterUsage ?? invoke(deps.settingsStore, "getInferenceRouterUsage") ?? null, local: getLocalInferenceCliStatus() }; },
-    getBoxRuntime: async () => { const mode = invoke(deps.settingsStore, "getBoxRuntime"); invariant(isSandBoxRuntime(mode), "Unknown box runtime."); return { mode, status: await getLocalDockerStatus(String(Reflect.get(deps.settingsStore, "settingsPath"))) }; },
-    setBoxRuntime: async (raw) => { const mode = req(raw).mode; invariant(isSandBoxRuntime(mode), "Unknown box runtime."); const settingsPath = String(Reflect.get(deps.settingsStore, "settingsPath")); invoke(deps.settingsStore, "setBoxRuntime", mode); try { if (mode === "local-docker") await startLocalDockerBox(settingsPath); else await stopLocalDockerBox(); } catch (error) { invoke(deps.settingsStore, "setBoxRuntime", mode === "local-docker" ? "remote" : "local-docker"); throw error; } invoke(deps.boxRecovery, "restartCoordinator"); return { mode, status: await getLocalDockerStatus(settingsPath) }; },
+    listRoxModels: async () => { const apiKey = resolveAgentRoxKey(); return { models: await listRoxModels(apiKey == null ? {} : { apiKey }) }; },
+    getAgentRoxModel: (raw) => { const agentId = req(raw).agentId; return getAgentRoxModel(typeof agentId === "string" ? agentId : undefined); },
+    setAgentRoxModel: (raw) => { const request = req(raw); const agentId = typeof request.agentId === "string" ? request.agentId : undefined; const modelId = typeof request.modelId === "string" ? request.modelId : ""; const effort = request.effort; return setAgentRoxModel({ ...(agentId == null ? {} : { agentId }), modelId, ...(isRoxReasoningEffort(effort) ? { effort } : {}) }); },
+    getBoxRuntime: async () => { const mode = invoke(deps.settingsStore, "getBoxRuntime"); invariant(isSandBoxRuntime(mode), "Unknown box runtime."); const settingsPath = String(Reflect.get(deps.settingsStore, "settingsPath")); return { mode, status: mode === "m4697" ? await getM4697Status(settingsPath) : await getLocalDockerStatus(settingsPath) }; },
+    setBoxRuntime: async (raw) => { const mode = req(raw).mode; invariant(isSandBoxRuntime(mode), "Unknown box runtime."); const settingsPath = String(Reflect.get(deps.settingsStore, "settingsPath")); const previous = invoke(deps.settingsStore, "getBoxRuntime"); invoke(deps.settingsStore, "setBoxRuntime", mode); try { if (mode === "m4697") await startM4697Box(settingsPath); if (mode === "local-docker") await startLocalDockerBox(settingsPath); else await stopLocalDockerBox(); if (mode !== "m4697") await stopM4697Box(); } catch (error) { invoke(deps.settingsStore, "setBoxRuntime", isSandBoxRuntime(previous) ? previous : DEFAULT_SAND_BOX_RUNTIME); throw error; } invoke(deps.boxRecovery, "restartCoordinator"); return { mode, status: mode === "m4697" ? await getM4697Status(settingsPath) : await getLocalDockerStatus(settingsPath) }; },
 
     getEgressTunnelEnabled: () => invoke(deps.boxToggleStore, "getEgressTunnelEnabled"),
     setEgressTunnelEnabled: (raw) => { const enabled = req(raw).enabled === true; invoke(deps.boxToggleStore, "setEgressTunnelEnabled", enabled); invoke(egressController(deps), "setEnabled", enabled); deps.emitEgressTunnelChanged(enabled); return enabled; },

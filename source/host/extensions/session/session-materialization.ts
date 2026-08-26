@@ -7,6 +7,7 @@ import { SandAgentDb } from "./agent-db.js";
 import { getAgentDbPath } from "./session-paths.js";
 import { automationStoreForDbPath, channelStoreForDbPath, workflowStoreForDbPath } from "./session-store-factories.js";
 import type { AgentWorkerPool } from "../../agent-isolation/agent-worker-pool.js";
+import { ensureAgentRoxKey } from "../../../electron-main/account/rox-agent-keys.js";
 
 export const MAX_AGENTS_PER_USER = 50;
 export const DEFAULT_AGENT_AUTOMATIONS: readonly unknown[] = [];
@@ -76,6 +77,7 @@ export class SandSessionMaterialization {
       db.set("agentId", agentId); db.setAgentOrigin(origin); if (purpose != null) db.setAgentPurpose(purpose);
       writeSandProfileFile(getSandProfilePath(dirname(dbPath)), { name: profile?.name?.trim() || "Grok", description: profile?.description?.trim() ?? "", title: profile?.title?.trim() ?? "", avatarShape: profile?.avatarShape?.trim() ?? "", avatarColor: profile?.avatarColor?.trim() ?? "" });
       writeSandSettingsFile(getSandSettingsPath(dirname(dbPath)), { notifyOnAgentUpdates: true });
+      await ensureAgentRoxKey(agentId, profile?.name?.trim() || "Grok");
       const session = this.compose(agentId, dbPath, db);
       for (const spec of DEFAULT_AGENT_AUTOMATIONS) session.automations.upsert(spec as never);
       return session;
@@ -88,6 +90,7 @@ export class SandSessionMaterialization {
       const profilePath = getSandProfilePath(dirname(dbPath));
       try { await stat(profilePath); } catch { writeSandProfileFile(profilePath, { name: db.get("name") || "Grok", description: db.getSandProfile().description, title: "", avatarShape: "", avatarColor: "" }); }
       const session = this.compose(agentId, dbPath, db);
+      await ensureAgentRoxKey(agentId);
       await session.agentStore.resetFromDb?.(this.host.ctx);
       await this.host.runMaintenance?.(session);
       return session;

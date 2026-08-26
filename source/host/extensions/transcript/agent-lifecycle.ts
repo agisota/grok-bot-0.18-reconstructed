@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { ensureAgentRoxKey } from "../../../electron-main/account/rox-agent-keys.js";
 import { isSandAgentLimitError } from "../../../shared/agents/agents.js";
 import { errorLogTag } from "../../../shared/errors.js";
 import {
@@ -108,6 +109,11 @@ export class AgentLifecycle {
       options.purpose,
     );
     options.configureAgentDir?.(this.tm.sessionStore.getAgentDir(session.id));
+    let agentName = "Grok";
+    if (profile != null && typeof profile === "object" && "name" in profile && typeof profile.name === "string" && profile.name.trim().length > 0) {
+      agentName = profile.name;
+    }
+    await ensureAgentRoxKey(session.id, agentName);
     if (options.isIntroductionSuppressed !== true)
       session.db.setIntroductionPending(true);
     return session;
@@ -133,6 +139,7 @@ export class AgentLifecycle {
       session.db.setIntroductionPending(false);
       return false;
     }
+    await ensureAgentRoxKey(agentId);
     if (!isRunReady || !this.tm.execution.canExecute) return false;
     if (this.tm.runLifecycle.inFlightRunCounts.has(session)) return true;
     const runner = this.tm.runnerRegistry.getRunner(session);

@@ -262,6 +262,9 @@ export function createDesktopPreloadBridge(options: {
       getAvailableModels: () => edge("getAvailableModels"),
       getInferenceRouter: () => edge("getInferenceRouter"),
       setInferenceRouter: (provider: string) => edge("setInferenceRouter", { provider }),
+      listRoxModels: () => edge("listRoxModels"),
+      getAgentRoxModel: (agentId?: string) => edge("getAgentRoxModel", agentId == null ? {} : { agentId }),
+      setAgentRoxModel: (args: { agentId?: string | null; modelId: string; effort?: string }) => edge("setAgentRoxModel", args),
       getBoxRuntime: () => edge("getBoxRuntime"),
       setBoxRuntime: (mode: string) => edge("setBoxRuntime", { mode }),
       clientPersistence: {

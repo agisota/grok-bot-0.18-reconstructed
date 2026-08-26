@@ -7,11 +7,13 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { jsonSchema, streamText, tool, type CoreMessage, type LanguageModelV1, type ToolSet } from "ai";
 
 import { BasePromptBuilder, BasePromptExecutor } from "../../../packages/chat-inference/base.js";
-import { DEFAULT_ROX_BASE_URL, DEFAULT_ROX_MODEL, type SandInferenceProvider } from "../../../shared/inference-router.js";
+import { DEFAULT_ROX_BASE_URL, type SandInferenceProvider } from "../../../shared/inference-router.js";
+import { effortFromSelection, resolveRoxModelSelection } from "../../agents/agent-rox-model.js";
 import { resolveClaudeCodeCliPath } from "../../../shared/node/inference-router-local.js";
 import { getSandRootDir } from "../../host-paths.js";
 import { SandSettingsStore } from "../../../shared/node/settings/sand-settings-store.js";
 import { getBoxSecretsStorePath } from "../secrets/secrets-service.js";
+import { resolveAgentRoxKey } from "../../../electron-main/account/rox-agent-keys.js";
 import { streamCodexDirectResponses, type CodexDirectTool } from "./codex-direct-responses.js";
 import type { LabelMessage, PromptExecutor } from "./sand-labeling.js";
 
@@ -49,7 +51,8 @@ function openRouterCredential(): string {
 }
 
 function roxCredential(): string {
-  const value = process.env.OMNIROUTE_API_KEY?.trim() || process.env.ROX_API_KEY?.trim() || persistedSecrets().OMNIROUTE_API_KEY?.trim() || persistedSecrets().ROX_API_KEY?.trim();
+  const value = resolveAgentRoxKey() ?? persistedSecrets().OMNIROUTE_API_KEY?.trim() ?? persistedSecrets().ROX_API_KEY?.trim();
+
   if (value == null || value.length === 0) throw new Error("ROX needs OMNIROUTE_API_KEY. Add it in Settings → Router.");
   return value;
 }
@@ -250,35 +253,39 @@ function toToolSet(definitions: readonly Loose[] | undefined, executeTool?: Rout
   return Object.keys(tools).length === 0 ? undefined : tools;
 }
 
-function openRouterExecutor(messages: readonly ProviderMessage[], invocationId: string, definitions?: readonly Loose[], executeTool?: RoutedToolExecutor, onUsage?: (usage: UsageRecord) => void, provider: RoutedProvider = "openrouter") {
+function openRouterExecutor(messages: readonly ProviderMessage[], invocationId: string, definitions?: readonly Loose[], executeTool?: RoutedToolExecutor, onUsage?: (usage: UsageRecord) => void, provider: RoutedProvider = "openrouter", agentId?: string) {
   const rox = provider === "rox";
-  const id = rox ? (process.env.SAND_ROX_MODEL?.trim() || DEFAULT_ROX_MODEL) : (process.env.SAND_OPENROUTER_MODEL?.trim() || "openai/gpt-5.2");
-  const model: LanguageModelV1 = createOpenAI({
-    apiKey: rox ? roxCredential() : openRouterCredential(),
+  const selection = rox ? resolveRoxModelSelection(agentId) : undefined;
+  const id = rox ? selection.modelId : (process.env.SAND_OPENROUTER_MODEL?.trim() || "openai/gpt-5.2");
+  const effort = rox ? effortFromSelection(selection) : undefined;
+  const client = createOpenAI({
+    apiKey: rox ? (resolveAgentRoxKey(agentId) ?? roxCredential()) : openRouterCredential(),
     baseURL: rox ? (process.env.SAND_ROX_BASE_URL?.trim() || DEFAULT_ROX_BASE_URL) : "https://openrouter.ai/api/v1",
     compatibility: "compatible",
     name: rox ? "rox" : "openrouter",
     headers: rox ? { "HTTP-Referer": "https://api.rox.one", "X-Title": "Grok Bot ROX" } : { "HTTP-Referer": "https://github.com/grok-bot-reconstructed", "X-Title": "Grok Bot Reconstructed" },
-  }).chat(id as any);
+  });
+  const model: LanguageModelV1 = rox && id.startsWith("gpt-5.6-") ? client.responses(id) : client.chat(id);
   const tools = toToolSet(definitions, executeTool);
-  const result = streamText({ model, system: GROK_ROUTER_SYSTEM_PROMPT, messages: messages as CoreMessage[], ...(tools === undefined ? {} : { tools }), toolCallStreaming: true, maxSteps: tools === undefined ? 1 : 8 });
+  const reasoning = rox && effort != null && effort !== "none" ? { effort } : undefined;
+  const result = streamText({ model, system: GROK_ROUTER_SYSTEM_PROMPT, messages: messages as CoreMessage[], ...(tools === undefined ? {} : { tools }), toolCallStreaming: true, maxSteps: tools === undefined ? 1 : 8, abortSignal: AbortSignal.timeout(400_000), ...(reasoning == null ? {} : { providerOptions: { openai: { reasoning } } }) });
   const extendedUsage = result.usage.then(value => ({ inputTokens: value.promptTokens, outputTokens: value.completionTokens, cacheReadTokens: 0, cacheWriteTokens: 0, maxTokens: 0 }));
   if (onUsage != null) void extendedUsage.then(onUsage);
   return { fullStream: result.fullStream, response: result.response, usage: result.usage, extendedUsage, providerMetadata: result.providerMetadata, invocationId: Promise.resolve(invocationId) };
 }
 
 class ProviderPromptExecutor extends BasePromptExecutor<ProviderMessage> {
-  constructor(readonly provider: RoutedProvider, initialMessages?: readonly ProviderMessage[], readonly onUsage?: (usage: UsageRecord) => void) { super(new BasePromptBuilder(initialMessages)); }
+  constructor(readonly provider: RoutedProvider, initialMessages?: readonly ProviderMessage[], readonly onUsage?: (usage: UsageRecord) => void, readonly agentId?: string) { super(new BasePromptBuilder(initialMessages)); }
   stream(_ctx: unknown, invocationId = crypto.randomUUID(), definitions?: readonly Loose[]) {
     if (this.provider === "codex") return codexExecutor(this.getMessages(), invocationId, definitions, undefined, this.onUsage);
     if (this.provider === "claude-code") return claudeExecutor(this.getMessages(), invocationId, this.onUsage);
-    return openRouterExecutor(this.getMessages(), invocationId, definitions, undefined, this.onUsage, this.provider);
+    return openRouterExecutor(this.getMessages(), invocationId, definitions, undefined, this.onUsage, this.provider, this.agentId);
   }
 }
 
-export function createProviderPromptSession(provider: RoutedProvider): { getModelId(): string; getExecutor(state?: unknown): PromptExecutor } {
-  const modelId = provider === "codex" ? configuredCodexModel() : provider === "claude-code" ? "claude-code" : provider === "rox" ? (process.env.SAND_ROX_MODEL?.trim() || DEFAULT_ROX_MODEL) : process.env.SAND_OPENROUTER_MODEL?.trim() || "openai/gpt-5.2";
-  return { getModelId: () => modelId, getExecutor: state => new ProviderPromptExecutor(provider, Array.isArray(state) ? state as ProviderMessage[] : undefined, usage => recordRoutedUsage(provider, usage)) };
+export function createProviderPromptSession(provider: RoutedProvider, options?: { agentId?: string }): { getModelId(): string; getExecutor(state?: unknown): PromptExecutor } {
+  const modelId = provider === "codex" ? configuredCodexModel() : provider === "claude-code" ? "claude-code" : provider === "rox" ? resolveRoxModelSelection(options?.agentId).modelId : process.env.SAND_OPENROUTER_MODEL?.trim() || "openai/gpt-5.2";
+  return { getModelId: () => modelId, getExecutor: state => new ProviderPromptExecutor(provider, Array.isArray(state) ? state as ProviderMessage[] : undefined, usage => recordRoutedUsage(provider, usage), options?.agentId) };
 }
 
 export async function runRoutedProviderText(provider: RoutedProvider, messages: readonly ProviderMessage[], options?: {

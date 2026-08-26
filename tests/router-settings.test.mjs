@@ -39,6 +39,16 @@ test("router provider preference defaults to ROX and round-trips every provider"
   }
 });
 
+test("ROX model selection defaults to gpt-5.6-luna with medium effort", async () => {
+  const router = await loadRouterModule();
+  assert.equal(router.DEFAULT_ROX_MODEL_ID, "gpt-5.6-luna");
+  assert.equal(router.DEFAULT_ROX_REASONING_EFFORT, "medium");
+  assert.deepEqual(router.ROX_REASONING_EFFORTS, ["none", "low", "medium", "high"]);
+  assert.deepEqual(router.parseRoxModelSelection(null), { modelId: "gpt-5.6-luna", effort: "medium" });
+  assert.deepEqual(router.parseRoxModelSelection({ modelId: "grok-4.6", effort: "high" }), { modelId: "grok-4.6", effort: "high" });
+  assert.deepEqual(router.parseRoxModelSelection({ modelId: "  ", effort: "extreme" }), { modelId: "gpt-5.6-luna", effort: "medium" });
+});
+
 test("settings registry exposes Router with the native settings icon contract", async () => {
   const source = await readFile(path.join(repoRoot, "frontend/src/recovered/features/settings/overlay/view.tsx"), "utf8");
   assert.match(source, /\{ id: "router", label: "Router", icon: "git-branch" \}/);

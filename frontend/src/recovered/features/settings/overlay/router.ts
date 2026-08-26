@@ -11,7 +11,23 @@ export interface RouterProvider {
 }
 
 export const DEFAULT_ROUTER_PROVIDER: RouterProviderId = "rox";
+export const DEFAULT_ROX_MODEL_ID = "gpt-5.6-luna";
+export const DEFAULT_ROX_REASONING_EFFORT = "medium";
+export const ROX_REASONING_EFFORTS = ["none", "low", "medium", "high"] as const;
+export type RoxReasoningEffort = (typeof ROX_REASONING_EFFORTS)[number];
 export const ROUTER_PROVIDER_PERSISTENCE_KEY = "settings.router-provider.v1";
+
+export function isRoxReasoningEffort(value: unknown): value is RoxReasoningEffort {
+  return typeof value === "string" && (ROX_REASONING_EFFORTS as readonly string[]).includes(value);
+}
+
+export function parseRoxModelSelection(raw: unknown): { modelId: string; effort: RoxReasoningEffort } {
+  if (typeof raw !== "object" || raw == null || Array.isArray(raw)) return { modelId: DEFAULT_ROX_MODEL_ID, effort: DEFAULT_ROX_REASONING_EFFORT };
+  const record = raw as Record<string, unknown>;
+  const modelId = typeof record.modelId === "string" && record.modelId.trim().length > 0 ? record.modelId.trim() : DEFAULT_ROX_MODEL_ID;
+  const effort = isRoxReasoningEffort(record.effort) ? record.effort : DEFAULT_ROX_REASONING_EFFORT;
+  return { modelId, effort };
+}
 
 export const ROUTER_PROVIDERS: readonly RouterProvider[] = [
   {
