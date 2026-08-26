@@ -35,6 +35,45 @@ test("default packaging keeps the polished checksum-pinned renderer", async () =
   assert.match(source, /await buildFidelityReconstructedAsar\(\)/);
 });
 
+test("native e2e accepts checksum-pinned renderer provenance", async () => {
+  const { createHash } = await import("node:crypto");
+  const {
+    CLEAN_RENDERER_PROVENANCE,
+    PINNED_RENDERER_PROVENANCE,
+    REQUIRED_PACKAGED_ARTIFACTS,
+    inspectPackagedArtifacts,
+    verifyChecksumPinnedRendererEntrypoint,
+  } = await import("../scripts/native-e2e-check.mjs");
+  assert.equal(REQUIRED_PACKAGED_ARTIFACTS.includes(CLEAN_RENDERER_PROVENANCE), false);
+  const indexBytes = Buffer.from("<script type=\"module\" src=\"./assets/index.js\"></script>");
+  const rendererBytes = Buffer.from("export default 1;");
+  const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+  const provenance = {
+    schemaVersion: 1,
+    upstreamVersion: "0.18.0",
+    mode: "checksum-pinned-artifact-runtime",
+    hashAlgorithm: "sha256",
+    fileCount: 2,
+    files: [
+      { path: "index.html", bytes: indexBytes.byteLength, sha256: digest(indexBytes) },
+      { path: "assets/index.js", bytes: rendererBytes.byteLength, sha256: digest(rendererBytes) },
+    ],
+  };
+  const listing = new Set([...REQUIRED_PACKAGED_ARTIFACTS, PINNED_RENDERER_PROVENANCE]);
+  const diagnostics = await inspectPackagedArtifacts({
+    list: async () => [...listing],
+    read: async () => Buffer.from(JSON.stringify({ main: "dist/electron-main/main.cjs" })),
+  });
+  assert.equal(diagnostics.find((item) => item.check === "artifact:renderer-provenance")?.status, "pass");
+  const verdict = await verifyChecksumPinnedRendererEntrypoint({
+    readArtifact: async () => Buffer.from(JSON.stringify(provenance)),
+    rendererArtifact: "dist/renderer/assets/index.js",
+    rendererBytes,
+    indexBytes,
+  });
+  assert.equal(verdict.status, "pass");
+});
+
 test("Router settings use the trusted backend and display recorded inference usage", async () => {
   const rendererPatch = await readFile(path.join(repoRoot, "scripts", "lib", "router-renderer-patch.mjs"), "utf8");
   const preload = await readFile(path.join(repoRoot, "source", "electron-preload", "preload.ts"), "utf8");

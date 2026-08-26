@@ -1,0 +1,22 @@
+# Grok Bot 0.18 reconstructed launch receipt
+
+- Status: verified
+- Date: 2026-08-26
+- App path: `/Applications/Grok Bot 0.18 Reconstructed.app`
+- Version: `CFBundleShortVersionString` `0.18.0`
+- Display name: `Grok Bot 0.18 Reconstructed`
+- Official install left untouched: `/Applications/Grok Bot.app` remains `0.27.0`
+- Runtime source: local `~/Downloads/Grok_Bot_0.18.0.dmg` (155793020 bytes, sha256 `a253ccd8aab01e083f9812a0264354c5034d8ba7f0610bbb557e82ae77d203eb`)
+- Node: `mise exec node@26.7.0`
+- Package: `node scripts/package-macos.mjs` after `npm ci` and `npm run bootstrap`
+- Install: `ditto` from `dist/Grok Bot 0.18 Reconstructed.app` to `/Applications`; launch proof did not use `dist/`
+- `codesign --verify --deep --strict`: exit 0
+- Native E2E: `node scripts/native-e2e-check.mjs --app "/Applications/Grok Bot 0.18 Reconstructed.app"`
+  - status: `pass`
+  - observationClass: `admissible-production-startup-observation`
+  - generatedAt: `2026-08-26T15:25:22.093Z`
+  - `entrypoint:renderer`: checksum-pinned `dist/renderer/assets/index-UbX-y3il.js` (131 inventory files)
+  - `runtime:startup`: pass
+  - `runtime:renderer`: pass
+  - `runtime:fatal-logs`: pass
+  - `runtime:opaque-fallback`: pass

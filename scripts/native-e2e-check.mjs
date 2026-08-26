@@ -26,9 +26,11 @@ export const REQUIRED_PACKAGED_ARTIFACTS = Object.freeze([
   "dist/node-agent-coordinator/main.cjs",
   "dist/host/host-main.cjs",
   "dist/local-exec-daemon/main.cjs",
-  "dist/renderer/index.html",
-  "dist/renderer/renderer-source-provenance.json"
+  "dist/renderer/index.html"
 ]);
+export const CLEAN_RENDERER_PROVENANCE = "dist/renderer/renderer-source-provenance.json";
+export const PINNED_RENDERER_PROVENANCE = "dist/renderer-artifact-provenance.json";
+export const RENDERER_ROUTER_EXTENSION = "dist/renderer-router-extension.json";
 
 export const PRODUCTION_ENTRYPOINTS = Object.freeze({
   main: "dist/electron-main/main.cjs",
@@ -334,6 +336,63 @@ function artifactProvenance(manifest, role, artifact) {
   };
 }
 
+export async function verifyChecksumPinnedRendererEntrypoint({
+  readArtifact,
+  rendererArtifact,
+  rendererBytes,
+  indexBytes,
+}) {
+  let pinned;
+  try {
+    pinned = JSON.parse((await readArtifact(PINNED_RENDERER_PROVENANCE)).toString("utf8"));
+  } catch {
+    return { status: "fail", detail: `Missing ${PINNED_RENDERER_PROVENANCE}` };
+  }
+  if (
+    pinned?.schemaVersion !== 1
+    || pinned.mode !== "checksum-pinned-artifact-runtime"
+    || pinned.hashAlgorithm !== "sha256"
+    || pinned.upstreamVersion !== "0.18.0"
+    || !Array.isArray(pinned.files)
+    || pinned.files.length === 0
+  ) {
+    return { status: "fail", detail: "checksum-pinned renderer provenance contract is invalid" };
+  }
+  const relative = rendererArtifact.replace(/^dist\/renderer\//, "");
+  const record = pinned.files.find((file) => file?.path === relative);
+  if (record == null || typeof record.bytes !== "number" || !/^[0-9a-f]{64}$/.test(record.sha256)) {
+    return { status: "fail", detail: `${relative} missing from checksum-pinned renderer inventory` };
+  }
+  let extension = null;
+  try {
+    const parsed = JSON.parse((await readArtifact(RENDERER_ROUTER_EXTENSION)).toString("utf8"));
+    if (parsed?.schemaVersion === 1 && parsed.mode === "original-renderer-settings-extension" && Array.isArray(parsed.chunks)) {
+      extension = parsed;
+    }
+  } catch {
+    extension = null;
+  }
+  const chunk = extension?.chunks.find((row) => row?.path === `dist/renderer/${relative}`);
+  if (chunk != null) {
+    if (chunk.original?.sha256 !== record.sha256 || chunk.original?.bytes !== record.bytes) {
+      return { status: "fail", detail: `${relative} extension source identity drift` };
+    }
+    if (chunk.patched?.sha256 !== sha256(rendererBytes) || chunk.patched?.bytes !== rendererBytes.byteLength) {
+      return { status: "fail", detail: `${relative} patched hash/size drift from renderer extension` };
+    }
+  } else if (record.sha256 !== sha256(rendererBytes) || record.bytes !== rendererBytes.byteLength) {
+    return { status: "fail", detail: `${relative} hash/size drift from checksum-pinned inventory` };
+  }
+  const indexRecord = pinned.files.find((file) => file?.path === "index.html");
+  if (indexRecord == null || indexRecord.sha256 !== sha256(indexBytes) || indexRecord.bytes !== indexBytes.byteLength) {
+    return { status: "fail", detail: "index.html hash/size drift from checksum-pinned inventory" };
+  }
+  return {
+    status: "pass",
+    detail: `Renderer index resolves checksum-pinned 0.18 script ${rendererArtifact} (${pinned.fileCount} inventory files)`,
+  };
+}
+
 export async function verifyEntrypointGraph({ readArtifact, immutableRoot, sourceRoot, provenanceManifest }) {
   const diagnostics = [];
   let manifest = provenanceManifest;
@@ -366,6 +425,18 @@ export async function verifyEntrypointGraph({ readArtifact, immutableRoot, sourc
         continue;
       }
       const provenance = artifactProvenance(manifest, role, rendererArtifact);
+      if (provenance.mode === "checksum-pinned-artifact-runtime") {
+        diagnostics.push({
+          check: "entrypoint:renderer",
+          ...await verifyChecksumPinnedRendererEntrypoint({
+            readArtifact,
+            rendererArtifact,
+            rendererBytes,
+            indexBytes: bytes,
+          }),
+        });
+        continue;
+      }
       let rendererRuntimeProvenance = null;
       try { rendererRuntimeProvenance = JSON.parse((await readArtifact("dist/renderer/renderer-source-provenance.json")).toString("utf8")); }
       catch {}
@@ -481,6 +552,19 @@ export async function inspectPackagedArtifacts(payload) {
   const diagnostics = REQUIRED_PACKAGED_ARTIFACTS.map((required) => listing.has(required)
     ? { check: `artifact:${required}`, status: "pass", detail: "present" }
     : { check: `artifact:${required}`, status: "fail", detail: `Missing required packaged artifact ${required}` });
+  const hasCleanRendererProvenance = listing.has(CLEAN_RENDERER_PROVENANCE);
+  const hasPinnedRendererProvenance = listing.has(PINNED_RENDERER_PROVENANCE);
+  diagnostics.push(hasCleanRendererProvenance || hasPinnedRendererProvenance
+    ? {
+      check: "artifact:renderer-provenance",
+      status: "pass",
+      detail: hasPinnedRendererProvenance ? PINNED_RENDERER_PROVENANCE : CLEAN_RENDERER_PROVENANCE,
+    }
+    : {
+      check: "artifact:renderer-provenance",
+      status: "fail",
+      detail: `Missing ${CLEAN_RENDERER_PROVENANCE} or ${PINNED_RENDERER_PROVENANCE}`,
+    });
   try {
     const packageJson = JSON.parse((await payload.read("package.json")).toString("utf8"));
     diagnostics.push(packageJson.main === PRODUCTION_ENTRYPOINTS.main
